@@ -48,6 +48,7 @@
   /* ---------- Auth screen ---------- */
   #authScreen{
     height:100vh;
+    height:calc(var(--vh, 1vh) * 100);
     display:flex;
     align-items:center;
     justify-content:center;
@@ -141,6 +142,7 @@
   /* ---------- App shell ---------- */
   #appScreen{
     height:100vh;
+    height:calc(var(--vh, 1vh) * 100);
     display:flex;
   }
   #sidebar{
@@ -539,6 +541,16 @@
   </div>
 </div>
 
+<script>
+/* Fix for mobile browsers (especially split-screen/multi-window) where 100vh
+   doesn't match the actual visible height, hiding the composer bar. */
+function setRealVH(){
+  document.documentElement.style.setProperty('--vh', (window.innerHeight * 0.01) + 'px');
+}
+setRealVH();
+window.addEventListener('resize', setRealVH);
+window.addEventListener('orientationchange', setRealVH);
+</script>
 <script>
 /* ================= CONFIG ================= */
 const firebaseConfig = {
