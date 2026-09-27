@@ -246,7 +246,9 @@
   }
   .bubble.text.in{background:var(--bubble-in);border-bottom-left-radius:4px;}
   .bubble.text.out{background:var(--bubble-out);color:#FBF1E4;border-bottom-right-radius:4px;}
-  .bubble img{max-width:260px;border-radius:10px;display:block;}
+  .bubble img{max-width:260px;width:100%;height:auto;border-radius:10px;display:block;}
+  .bubble.media.out img{border-radius:10px 10px 4px 10px;}
+  .bubble.media.in img{border-radius:10px 10px 10px 4px;}
   .bubble.voice{width:min(240px,72vw);max-width:min(240px,72vw);}
   .bubble .msg-time{font-size:10.5px;opacity:.65;margin-top:4px;text-align:left;}
   .bubble audio{width:230px;height:36px;}
@@ -290,7 +292,7 @@
   #backBtn{display:none;}
 
   /* ---------- Recording overlay ---------- */
-  #recordOverlay{
+  #recordOverlay,#imagePreviewOverlay{
     position:fixed;inset:0;z-index:50;
     background:rgba(10,11,14,.86);
     backdrop-filter:blur(3px);
@@ -342,6 +344,20 @@
     display:flex;align-items:center;justify-content:center;
   }
   .rec-send:hover{filter:brightness(1.08);}
+
+  .preview-panel{
+    width:min(360px,88vw);
+    background:var(--panel);
+    border:1px solid var(--line);
+    border-radius:20px;
+    padding:18px;
+    text-align:center;
+  }
+  .preview-panel img{
+    max-width:100%;max-height:55vh;
+    border-radius:14px;display:block;
+    margin:0 auto 18px;
+  }
 
   /* ---------- Telegram-style voice player ---------- */
   .voice-player{
@@ -583,6 +599,9 @@ let usersCache = {};         // uid -> user doc data
 let chatsCache = {};         // otherUid -> chat doc data
 let unsubMessages = null;
 let unsubOtherUserStatus = null;
+let unsubChatDoc = null;
+let lastUserStatus = {text:'—', online:false};
+let lastTypingStatus = null; // 'text' | 'audio' | 'image' | null
 let heartbeatTimer = null;
 let mediaRecorder = null;
 let recordedChunks = [];
@@ -757,6 +776,7 @@ document.getElementById('logoutBtn').onclick = async () => {
   clearInterval(heartbeatTimer);
   if(unsubMessages) unsubMessages();
   if(unsubOtherUserStatus) unsubOtherUserStatus();
+  if(unsubChatDoc) unsubChatDoc();
   await auth.signOut();
   location.reload();
 };
@@ -872,9 +892,16 @@ async function openChat(otherUid){
 
   if(unsubOtherUserStatus) unsubOtherUserStatus();
   unsubOtherUserStatus = db.collection('users').doc(otherUid).onSnapshot(doc => {
-    const s = statusText(doc.data());
-    document.getElementById('chatStatus').textContent = s.text;
-    document.getElementById('chatDot').classList.toggle('on', s.online);
+    lastUserStatus = statusText(doc.data());
+    refreshChatHeaderStatus();
+  });
+
+  if(unsubChatDoc) unsubChatDoc();
+  lastTypingStatus = null;
+  unsubChatDoc = db.collection('chats').doc(currentChatId).onSnapshot(doc => {
+    const data = doc.data() || {};
+    lastTypingStatus = (data.typing || {})[otherUid] || null;
+    refreshChatHeaderStatus();
   });
 
   // make sure the chat document (with participants) exists BEFORE we read its
@@ -897,7 +924,43 @@ async function openChat(otherUid){
       messagesEl.innerHTML = '';
       snap.forEach(doc => renderMessage(doc.data(), doc.id));
       messagesEl.scrollTop = messagesEl.scrollHeight;
+
+      // I'm actively viewing this chat: keep my unread badge cleared and
+      // mark incoming messages as read (drives the green double-check marks)
+      db.collection('chats').doc(currentChatId).set({
+        ['unread.' + currentUser.uid]: 0
+      }, {merge:true}).catch(()=>{});
+
+      const batch = db.batch();
+      let hasUnreadIncoming = false;
+      snap.forEach(doc => {
+        const data = doc.data();
+        if(data.sender === otherUid && data.read !== true){
+          hasUnreadIncoming = true;
+          batch.update(doc.ref, {read:true});
+        }
+      });
+      if(hasUnreadIncoming) batch.commit().catch(()=>{});
     }, err => console.error('تعذرت قراءة الرسائل', err));
+}
+
+function refreshChatHeaderStatus(){
+  const statusEl = document.getElementById('chatStatus');
+  const dotEl = document.getElementById('chatDot');
+  if(!statusEl) return;
+  if(lastTypingStatus === 'text'){
+    statusEl.textContent = 'يكتب رسالة...';
+    dotEl.classList.add('on');
+  } else if(lastTypingStatus === 'audio'){
+    statusEl.textContent = 'يسجل رسالة صوتية...';
+    dotEl.classList.add('on');
+  } else if(lastTypingStatus === 'image'){
+    statusEl.textContent = 'يختار صورة ليرسلها...';
+    dotEl.classList.add('on');
+  } else {
+    statusEl.textContent = lastUserStatus.text;
+    dotEl.classList.toggle('on', lastUserStatus.online);
+  }
 }
 
 const REACTIONS = ['😅','😍','❤️'];
@@ -918,19 +981,14 @@ function renderMessage(msg, id){
     const p = document.createElement('div');
     p.textContent = msg.text;
     bubble.appendChild(p);
-    const t = document.createElement('div');
-    t.className = 'msg-time';
-    t.textContent = time;
-    bubble.appendChild(t);
+    bubble.appendChild(msgTimeRow(msg, time, out));
   } else if(msg.type === 'image'){
     bubble.className = 'bubble media ' + (out ? 'out' : 'in');
     const img = document.createElement('img');
     img.src = msg.url;
     bubble.appendChild(img);
-    const t = document.createElement('div');
-    t.className = 'msg-time';
+    const t = msgTimeRow(msg, time, out);
     t.style.padding = '4px 6px 0';
-    t.textContent = time;
     bubble.appendChild(t);
   } else if(msg.type === 'audio'){
     bubble.className = 'bubble text voice ' + (out ? 'out' : 'in');
@@ -941,6 +999,32 @@ function renderMessage(msg, id){
   row.appendChild(bubble);
   messagesEl.appendChild(row);
   attachLongPress(bubble, id, msg, out);
+}
+
+/* ---------- time + read-receipt ticks ---------- */
+function msgTimeRow(msg, time, out){
+  const wrap = document.createElement('div');
+  wrap.className = 'msg-time';
+  wrap.style.display = 'flex';
+  wrap.style.alignItems = 'center';
+  wrap.style.gap = '4px';
+  wrap.style.justifyContent = 'flex-end';
+  const span = document.createElement('span');
+  span.textContent = time;
+  wrap.appendChild(span);
+  if(out){
+    const ticks = document.createElement('span');
+    ticks.style.display = 'flex';
+    ticks.innerHTML = ticksIcon(msg.read === true);
+    wrap.appendChild(ticks);
+  }
+  return wrap;
+}
+function ticksIcon(read){
+  if(read){
+    return '<svg viewBox="0 0 18 12" width="15" height="10" fill="none" stroke="'+getComputedStyle(document.documentElement).getPropertyValue('--online')+'" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M1 6.5l3 3L9.5 3"/><path d="M6.5 6.5l3 3L16 3"/></svg>';
+  }
+  return '<svg viewBox="0 0 18 12" width="15" height="10" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" opacity="0.7"><path d="M1 6.5l3 3L9.5 3"/></svg>';
 }
 
 /* ---------- Telegram-style voice player ---------- */
@@ -971,10 +1055,8 @@ function buildVoicePlayer(bubble, msg, out, time){
   wrap.appendChild(playBtn);
   wrap.appendChild(mid);
   bubble.appendChild(wrap);
-  const t = document.createElement('div');
-  t.className = 'msg-time';
-  t.style.padding = '0 2px';
-  t.textContent = time;
+  const t = msgTimeRow(msg, time, out);
+  t.style.padding = '0 4px 2px';
   bubble.appendChild(t);
 
   const audio = new Audio(msg.dataUrl);
@@ -1103,6 +1185,25 @@ async function toggleReaction(chatIdArg, messageId, emoji){
 async function deleteMessage(chatIdArg, messageId){
   try{
     await db.collection('chats').doc(chatIdArg).collection('messages').doc(messageId).delete();
+
+    // the deleted message might have been the one shown as the sidebar preview,
+    // so recompute it from whatever message is now the most recent
+    const latestSnap = await db.collection('chats').doc(chatIdArg).collection('messages')
+      .orderBy('timestamp','desc').limit(1).get();
+    if(latestSnap.empty){
+      await db.collection('chats').doc(chatIdArg).set({
+        lastMessage: '', lastMessageTime: null
+      }, {merge:true});
+    } else {
+      const lastData = latestSnap.docs[0].data();
+      let preview = '';
+      if(lastData.type === 'text') preview = lastData.text;
+      else if(lastData.type === 'image') preview = '📷 صورة';
+      else if(lastData.type === 'audio') preview = '🎤 رسالة صوتية';
+      await db.collection('chats').doc(chatIdArg).set({
+        lastMessage: preview, lastMessageTime: lastData.timestamp
+      }, {merge:true});
+    }
   }catch(err){
     alert('ما قدرنا نحذف الرسالة');
   }
@@ -1207,6 +1308,16 @@ document.getElementById('backBtn').onclick = () => {
   document.getElementById('appScreen').classList.remove('chat-open');
 };
 
+/* ================= TYPING / RECORDING / PICKING STATUS ================= */
+let typingClearTimer = null;
+let pickerOpenedAt = 0;
+function setTypingStatus(status){
+  if(!currentChatId) return;
+  db.collection('chats').doc(currentChatId).set({
+    ['typing.' + currentUser.uid]: status
+  }, {merge:true}).catch(()=>{});
+}
+
 /* ================= SEND TEXT ================= */
 document.getElementById('sendBtn').onclick = sendText;
 document.getElementById('textInput').addEventListener('keydown', (e) => {
@@ -1216,6 +1327,13 @@ document.getElementById('textInput').addEventListener('input', (e) => {
   const hasText = e.target.value.trim().length > 0;
   document.getElementById('sendBtn').hidden = !hasText;
   document.getElementById('micBtn').hidden = hasText;
+  clearTimeout(typingClearTimer);
+  if(hasText){
+    setTypingStatus('text');
+    typingClearTimer = setTimeout(() => setTypingStatus(null), 3000);
+  } else {
+    setTypingStatus(null);
+  }
 });
 async function sendText(){
   const input = document.getElementById('textInput');
@@ -1224,30 +1342,77 @@ async function sendText(){
   input.value = '';
   document.getElementById('sendBtn').hidden = true;
   document.getElementById('micBtn').hidden = false;
+  clearTimeout(typingClearTimer);
+  setTypingStatus(null);
   await touchChatDoc(text);
   await db.collection('chats').doc(currentChatId).collection('messages').add({
-    sender: currentUser.uid, type:'text', text,
+    sender: currentUser.uid, type:'text', text, read:false,
     timestamp: FieldValue.serverTimestamp()
   });
 }
 
-/* ================= SEND IMAGE ================= */
-document.getElementById('attachBtn').onclick = () => document.getElementById('imageInput').click();
-document.getElementById('imageInput').addEventListener('change', async (e) => {
+/* ================= SEND IMAGE (with preview before upload) ================= */
+let pendingImageFile = null;
+
+document.getElementById('attachBtn').onclick = () => {
+  if(!currentChatId) return;
+  setTypingStatus('image');
+  pickerOpenedAt = Date.now();
+  document.getElementById('imageInput').click();
+};
+
+document.getElementById('imageInput').addEventListener('change', (e) => {
   const file = e.target.files[0];
   e.target.value = '';
-  if(!file || !currentChatId) return;
+  if(!file){ setTypingStatus(null); return; }
+  pendingImageFile = file;
+  const reader = new FileReader();
+  reader.onload = (ev) => {
+    document.getElementById('imagePreviewImg').src = ev.target.result;
+    document.getElementById('imagePreviewOverlay').hidden = false;
+  };
+  reader.readAsDataURL(file);
+});
+
+// safety net: if the user opens the gallery then cancels without choosing
+// anything, the browser's file input never fires "change", so we clear the
+// "picking a photo" status once the window regains focus and no preview opened
+window.addEventListener('focus', () => {
+  if(!pickerOpenedAt) return;
+  const openedRecently = Date.now() - pickerOpenedAt < 60000;
+  pickerOpenedAt = 0;
+  if(openedRecently){
+    setTimeout(() => {
+      if(document.getElementById('imagePreviewOverlay').hidden){
+        setTypingStatus(null);
+      }
+    }, 500);
+  }
+});
+
+document.getElementById('imgCancelBtn').onclick = () => {
+  pendingImageFile = null;
+  document.getElementById('imagePreviewOverlay').hidden = true;
+  setTypingStatus(null);
+};
+
+document.getElementById('imgSendBtn').onclick = async () => {
+  if(!pendingImageFile || !currentChatId) return;
+  const file = pendingImageFile;
+  pendingImageFile = null;
+  document.getElementById('imagePreviewOverlay').hidden = true;
+  setTypingStatus(null);
   try{
     const url = await uploadToImgbb(file);
     await touchChatDoc('📷 صورة');
     await db.collection('chats').doc(currentChatId).collection('messages').add({
-      sender: currentUser.uid, type:'image', url,
+      sender: currentUser.uid, type:'image', url, read:false,
       timestamp: FieldValue.serverTimestamp()
     });
   }catch(err){
     alert(err.message || 'صار خطأ برفع الصورة');
   }
-});
+};
 
 /* ================= SEND AUDIO (voice message) ================= */
 let recordingCancelled = false;
@@ -1274,6 +1439,7 @@ document.getElementById('micBtn').onclick = async () => {
       stream.getTracks().forEach(t => t.stop());
       clearInterval(recTimerInterval);
       document.getElementById('recordOverlay').hidden = true;
+      setTypingStatus(null);
 
       if(recordingCancelled) return;
 
@@ -1290,7 +1456,7 @@ document.getElementById('micBtn').onclick = async () => {
       });
       await touchChatDoc('🎤 رسالة صوتية');
       await db.collection('chats').doc(currentChatId).collection('messages').add({
-        sender: currentUser.uid, type:'audio', dataUrl,
+        sender: currentUser.uid, type:'audio', dataUrl, read:false,
         timestamp: FieldValue.serverTimestamp()
       });
     };
@@ -1298,6 +1464,7 @@ document.getElementById('micBtn').onclick = async () => {
     buildWaveBars();
     document.getElementById('recordOverlay').hidden = false;
     mediaRecorder.start();
+    setTypingStatus('audio');
     recSeconds = 0;
     document.getElementById('overlayTimer').textContent = '0:00';
     recTimerInterval = setInterval(() => {
@@ -1340,5 +1507,17 @@ auth.onAuthStateChanged(async (user) => {
   }
 });
 </script>
+<!-- ===================== IMAGE PREVIEW OVERLAY ===================== -->
+<div id="imagePreviewOverlay" hidden>
+  <div class="preview-panel">
+    <img id="imagePreviewImg" src="" alt="معاينة الصورة">
+    <div class="rec-actions">
+      <button class="rec-cancel" id="imgCancelBtn">إلغاء</button>
+      <button class="rec-send" id="imgSendBtn">
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><path d="M3 11.5L21 3l-6 18-4.5-7.5L3 11.5z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round" fill="none"/></svg>
+      </button>
+    </div>
+  </div>
+</div>
 </body>
 </html>
