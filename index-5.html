@@ -1,0 +1,1332 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>محادثة</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800&display=swap" rel="stylesheet">
+
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+
+<style>
+  :root{
+    --bg:#0F1115;
+    --panel:#171A21;
+    --panel-2:#1F232C;
+    --bubble-in:#1F232C;
+    --bubble-out:#8A5A2B;
+    --bubble-out-2:#A56C34;
+    --accent:#C98A3E;
+    --accent-soft:#3A2E1F;
+    --text:#EDEBE6;
+    --text-dim:#9298A2;
+    --text-faint:#5B616B;
+    --line:#262A33;
+    --danger:#D9634F;
+    --online:#49C97D;
+    --radius:14px;
+  }
+  *{box-sizing:border-box;}
+  html,body{height:100%;}
+  body{
+    margin:0;
+    background:var(--bg);
+    color:var(--text);
+    font-family:'Tajawal',sans-serif;
+    overflow:hidden;
+  }
+  ::-webkit-scrollbar{width:8px;}
+  ::-webkit-scrollbar-thumb{background:#2A2F39;border-radius:8px;}
+  ::-webkit-scrollbar-track{background:transparent;}
+  button{font-family:inherit;cursor:pointer;border:none;}
+  input{font-family:inherit;}
+
+  /* ---------- Auth screen ---------- */
+  #authScreen{
+    height:100vh;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    padding:24px;
+  }
+  .auth-card{
+    width:100%;
+    max-width:380px;
+    background:var(--panel);
+    border:1px solid var(--line);
+    border-radius:20px;
+    padding:36px 30px;
+  }
+  .auth-brand{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    margin-bottom:28px;
+  }
+  .auth-brand-dot{
+    width:12px;height:12px;border-radius:50%;
+    background:var(--accent);
+    flex:none;
+  }
+  .auth-brand span{font-weight:800;font-size:20px;letter-spacing:.2px;}
+  .field{margin-bottom:14px;}
+  .field label{display:block;font-size:13px;color:var(--text-dim);margin-bottom:6px;}
+  .field input[type=text],.field input[type=password]{
+    width:100%;
+    background:var(--panel-2);
+    border:1px solid var(--line);
+    border-radius:10px;
+    padding:12px 14px;
+    color:var(--text);
+    font-size:15px;
+    outline:none;
+    transition:border-color .15s;
+  }
+  .field input:focus{border-color:var(--accent);}
+  .avatar-pick{
+    display:flex;align-items:center;gap:14px;margin-bottom:18px;
+  }
+  .avatar-pick .preview{
+    width:56px;height:56px;border-radius:50%;
+    background:var(--panel-2);
+    display:flex;align-items:center;justify-content:center;
+    overflow:hidden;flex:none;
+    border:1px solid var(--line);
+    color:var(--text-faint);font-size:12px;
+  }
+  .avatar-pick .preview img{width:100%;height:100%;object-fit:cover;}
+  .btn-secondary{
+    background:var(--panel-2);
+    border:1px solid var(--line);
+    color:var(--text-dim);
+    padding:9px 14px;
+    border-radius:9px;
+    font-size:13px;
+  }
+  .btn-primary{
+    width:100%;
+    background:var(--accent);
+    color:#1a1206;
+    font-weight:700;
+    padding:13px;
+    border-radius:10px;
+    font-size:15px;
+    margin-top:6px;
+    transition:filter .15s, opacity .15s;
+  }
+  .btn-primary:hover{filter:brightness(1.08);}
+  .btn-primary:disabled{opacity:.55;cursor:default;}
+  .auth-switch{
+    text-align:center;
+    margin-top:18px;
+    font-size:13.5px;
+    color:var(--text-dim);
+  }
+  .auth-switch a{color:var(--accent);cursor:pointer;text-decoration:none;font-weight:700;}
+  .auth-error{
+    background:rgba(217,99,79,.12);
+    border:1px solid rgba(217,99,79,.4);
+    color:#EE9686;
+    font-size:13px;
+    padding:9px 12px;
+    border-radius:9px;
+    margin-bottom:14px;
+    display:none;
+  }
+
+  /* ---------- App shell ---------- */
+  #appScreen{
+    height:100vh;
+    display:flex;
+  }
+  #sidebar{
+    width:340px;
+    flex:none;
+    background:var(--panel);
+    border-left:1px solid var(--line);
+    display:flex;
+    flex-direction:column;
+  }
+  #sidebarHeader{
+    padding:16px 18px;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    border-bottom:1px solid var(--line);
+  }
+  .me{
+    display:flex;align-items:center;gap:10px;
+  }
+  .avatar{
+    width:42px;height:42px;border-radius:50%;
+    background:linear-gradient(135deg,#3A2E1F,#8A5A2B);
+    display:flex;align-items:center;justify-content:center;
+    font-weight:700;font-size:16px;color:#F3E6D2;
+    overflow:hidden;flex:none;
+  }
+  .avatar img{width:100%;height:100%;object-fit:cover;}
+  .avatar.sm{width:34px;height:34px;font-size:13px;}
+  .me-name{font-weight:700;font-size:14.5px;}
+  .me-username{font-size:12px;color:var(--text-faint);}
+  #logoutBtn{
+    background:transparent;color:var(--text-faint);font-size:12.5px;
+    padding:7px 10px;border-radius:8px;
+  }
+  #logoutBtn:hover{background:var(--panel-2);color:var(--text-dim);}
+
+  #userList{flex:1;overflow-y:auto;}
+  .contact{
+    display:flex;align-items:center;gap:12px;
+    padding:12px 18px;
+    cursor:pointer;
+    border-bottom:1px solid var(--line);
+    transition:background .1s;
+  }
+  .contact:hover{background:var(--panel-2);}
+  .contact.active{background:var(--panel-2);}
+  .contact-mid{flex:1;min-width:0;}
+  .contact-top{display:flex;justify-content:space-between;align-items:baseline;gap:8px;}
+  .contact-name{font-weight:700;font-size:14.5px;}
+  .contact-time{font-size:11px;color:var(--text-faint);flex:none;}
+  .contact-bottom{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:2px;}
+  .contact-preview{font-size:13px;color:var(--text-dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .unread-badge{
+    background:var(--accent);color:#1a1206;font-weight:800;
+    font-size:11px;min-width:19px;height:19px;border-radius:10px;
+    display:flex;align-items:center;justify-content:center;padding:0 5px;flex:none;
+  }
+  .empty-note{padding:24px 18px;color:var(--text-faint);font-size:13px;text-align:center;}
+
+  /* ---------- Chat pane ---------- */
+  #chatPane{flex:1;display:flex;flex-direction:column;min-width:0;}
+  #chatPlaceholder{
+    flex:1;display:flex;align-items:center;justify-content:center;
+    color:var(--text-faint);font-size:14px;flex-direction:column;gap:10px;
+  }
+  #chatPlaceholder .big-dot{width:54px;height:54px;border-radius:50%;background:var(--panel-2);border:1px solid var(--line);}
+
+  #chatHeader{
+    padding:14px 20px;
+    display:flex;align-items:center;gap:12px;
+    border-bottom:1px solid var(--line);
+    background:var(--panel);
+    flex:none;
+  }
+  .chat-h-name{font-weight:700;font-size:15px;}
+  .chat-h-status{font-size:12px;color:var(--text-faint);display:flex;align-items:center;gap:6px;}
+  .dot{width:7px;height:7px;border-radius:50%;background:var(--text-faint);flex:none;}
+  .dot.on{background:var(--online);}
+
+  #messages{
+    flex:1;overflow-y:auto;
+    padding:22px 24px;
+    display:flex;flex-direction:column;gap:10px;
+    background:
+      radial-gradient(circle at 15% 20%, rgba(201,138,62,.05), transparent 40%),
+      radial-gradient(circle at 85% 80%, rgba(201,138,62,.04), transparent 40%),
+      var(--bg);
+  }
+  .bubble-row{display:flex;position:relative;}
+  .bubble-row.out{justify-content:flex-end;}
+  .bubble-row.in{justify-content:flex-start;}
+  .bubble{
+    max-width:60%;
+    padding:9px 13px;
+    border-radius:var(--radius);
+    font-size:14.5px;
+    line-height:1.55;
+    position:relative;
+    word-wrap:break-word;
+  }
+  .bubble.text.in{background:var(--bubble-in);border-bottom-left-radius:4px;}
+  .bubble.text.out{background:var(--bubble-out);color:#FBF1E4;border-bottom-right-radius:4px;}
+  .bubble img{max-width:260px;border-radius:10px;display:block;}
+  .bubble.voice{width:min(240px,72vw);max-width:min(240px,72vw);}
+  .bubble .msg-time{font-size:10.5px;opacity:.65;margin-top:4px;text-align:left;}
+  .bubble audio{width:230px;height:36px;}
+  .bubble.media{padding:6px;background:var(--bubble-in);}
+  .bubble.media.out{background:var(--bubble-out);}
+
+  #composer{
+    display:flex;align-items:center;gap:10px;
+    padding:14px 20px;
+    border-top:1px solid var(--line);
+    background:var(--panel);
+    flex:none;
+  }
+  #textInput{
+    flex:1;
+    background:var(--panel-2);
+    border:1px solid var(--line);
+    border-radius:22px;
+    padding:11px 18px;
+    color:var(--text);
+    font-size:14.5px;
+    outline:none;
+  }
+  #textInput:focus{border-color:var(--accent);}
+  .icon-btn{
+    width:42px;height:42px;border-radius:50%;
+    background:var(--panel-2);
+    display:flex;align-items:center;justify-content:center;
+    flex:none;color:var(--text-dim);
+    transition:background .15s,color .15s;
+  }
+  .icon-btn:hover{background:#262B35;color:var(--text);}
+  .icon-btn.send{background:var(--accent);color:#1a1206;}
+  .icon-btn.send:hover{filter:brightness(1.08);background:var(--accent);}
+  .icon-btn.recording{background:var(--danger);color:#fff;animation:pulse 1s infinite;}
+  @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(217,99,79,.5);}70%{box-shadow:0 0 0 10px rgba(217,99,79,0);}100%{box-shadow:0 0 0 0 rgba(217,99,79,0);}}
+  #recTimer{font-size:13px;color:var(--danger);font-weight:700;min-width:40px;text-align:center;}
+
+  [hidden]{display:none !important;}
+
+  #backBtn{display:none;}
+
+  /* ---------- Recording overlay ---------- */
+  #recordOverlay{
+    position:fixed;inset:0;z-index:50;
+    background:rgba(10,11,14,.86);
+    backdrop-filter:blur(3px);
+    display:flex;align-items:center;justify-content:center;
+  }
+  .rec-panel{
+    width:min(340px,86vw);
+    background:var(--panel);
+    border:1px solid var(--line);
+    border-radius:20px;
+    padding:30px 26px 24px;
+    text-align:center;
+  }
+  .rec-timer{font-size:15px;color:var(--danger);font-weight:800;margin-bottom:18px;letter-spacing:.5px;}
+  .rec-wave{
+    height:64px;
+    display:flex;align-items:center;justify-content:center;gap:4px;
+    margin-bottom:10px;
+  }
+  .rec-wave span{
+    display:block;width:4px;border-radius:3px;
+    background:var(--accent);
+    height:8px;
+    animation:wave 900ms ease-in-out infinite;
+  }
+  .rec-wave span:nth-child(1){animation-delay:0ms;}
+  .rec-wave span:nth-child(2){animation-delay:90ms;}
+  .rec-wave span:nth-child(3){animation-delay:180ms;}
+  .rec-wave span:nth-child(4){animation-delay:270ms;}
+  .rec-wave span:nth-child(5){animation-delay:360ms;}
+  .rec-wave span:nth-child(6){animation-delay:270ms;}
+  .rec-wave span:nth-child(7){animation-delay:180ms;}
+  .rec-wave span:nth-child(8){animation-delay:90ms;}
+  .rec-wave span:nth-child(9){animation-delay:0ms;}
+  @keyframes wave{
+    0%,100%{height:8px;}
+    50%{height:56px;}
+  }
+  .rec-hint{font-size:12.5px;color:var(--text-faint);margin-bottom:22px;}
+  .rec-actions{display:flex;align-items:center;justify-content:center;gap:16px;}
+  .rec-cancel{
+    background:var(--panel-2);color:var(--text-dim);
+    padding:11px 22px;border-radius:12px;font-size:14px;
+  }
+  .rec-cancel:hover{background:#262B35;color:var(--text);}
+  .rec-send{
+    width:52px;height:52px;border-radius:50%;
+    background:var(--accent);color:#1a1206;
+    display:flex;align-items:center;justify-content:center;
+  }
+  .rec-send:hover{filter:brightness(1.08);}
+
+  /* ---------- Telegram-style voice player ---------- */
+  .voice-player{
+    display:flex;align-items:center;gap:8px;
+    padding:4px 2px;
+    width:100%;
+  }
+  .voice-play{
+    width:32px;height:32px;border-radius:50%;flex:none;
+    display:flex;align-items:center;justify-content:center;
+    background:rgba(255,255,255,.14);color:inherit;
+  }
+  .bubble.in .voice-play{background:rgba(255,255,255,.08);color:var(--text);}
+  .voice-mid{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px;}
+  .voice-wave-wrap{position:relative;height:20px;}
+  .voice-wave-bg,.voice-wave-fg{
+    position:absolute;inset:0;
+    display:flex;align-items:center;gap:2px;
+  }
+  .voice-wave-bg span{background:rgba(255,255,255,.30);}
+  .bubble.in .voice-wave-bg span{background:rgba(255,255,255,.16);}
+  .voice-wave-fg{overflow:hidden;width:0%;}
+  .voice-wave-fg span{background:#fff;}
+  .bubble.in .voice-wave-fg span{background:var(--accent);}
+  .voice-wave-bg span,.voice-wave-fg span{
+    display:block;width:3px;border-radius:2px;flex:none;
+  }
+  .voice-time{font-size:11px;opacity:.75;}
+
+  /* ---------- Reactions ---------- */
+  .bubble{position:relative;}
+  .reaction-badge{
+    position:absolute;
+    bottom:-11px;
+    background:var(--panel-2);
+    border:1px solid var(--line);
+    border-radius:12px;
+    padding:1px 6px;
+    font-size:13px;
+    display:flex;gap:2px;
+    box-shadow:0 2px 5px rgba(0,0,0,.35);
+  }
+  .bubble-row.out .reaction-badge{left:10px;}
+  .bubble-row.in .reaction-badge{right:10px;}
+
+  .bubble.pressed{filter:brightness(.82);}
+
+  #reactionMenu{
+    position:fixed;z-index:60;
+    background:var(--panel-2);
+    border:1px solid var(--line);
+    border-radius:22px;
+    padding:6px 8px;
+    display:flex;align-items:center;gap:4px;
+    box-shadow:0 8px 24px rgba(0,0,0,.45);
+  }
+  #reactionMenu .emoji-opt{
+    font-size:21px;
+    width:38px;height:38px;border-radius:50%;
+    display:flex;align-items:center;justify-content:center;
+    background:transparent;
+    transition:transform .1s, background .1s;
+  }
+  #reactionMenu .emoji-opt:hover{background:rgba(255,255,255,.08);transform:scale(1.15);}
+  #reactionMenu .menu-sep{width:1px;height:22px;background:var(--line);margin:0 2px;flex:none;}
+  #reactionMenu .delete-opt{
+    width:38px;height:38px;border-radius:50%;
+    display:flex;align-items:center;justify-content:center;
+    color:var(--danger);background:transparent;
+  }
+  #reactionMenu .delete-opt:hover{background:rgba(217,99,79,.15);}
+  #menuBackdrop{position:fixed;inset:0;z-index:55;background:transparent;}
+
+  @media(max-width:760px){
+    #sidebar{width:100%;position:absolute;inset:0;z-index:5;}
+    #appScreen.chat-open #sidebar{display:none;}
+    #chatPane{width:100%;}
+    #backBtn{display:flex !important;}
+  }
+</style>
+</head>
+<body>
+
+<!-- ===================== AUTH ===================== -->
+<div id="authScreen">
+  <div class="auth-card">
+    <div class="auth-brand"><div class="auth-brand-dot"></div><span>محادثة</span></div>
+
+    <div class="auth-error" id="authError"></div>
+
+    <!-- Login form -->
+    <form id="loginForm">
+      <div class="field">
+        <label>المعرف</label>
+        <input type="text" id="loginUsername" autocomplete="username" required>
+      </div>
+      <div class="field">
+        <label>كلمة السر</label>
+        <input type="password" id="loginPassword" autocomplete="current-password" required>
+      </div>
+      <button type="submit" class="btn-primary" id="loginBtn">تسجيل الدخول</button>
+      <div class="auth-switch">ما عندك حساب؟ <a id="goRegister">أنشئ حساب جديد</a></div>
+    </form>
+
+    <!-- Register form -->
+    <form id="registerForm" hidden>
+      <div class="avatar-pick">
+        <div class="preview" id="avatarPreview">صورة</div>
+        <div>
+          <input type="file" id="avatarInput" accept="image/*" hidden>
+          <button type="button" class="btn-secondary" id="avatarPickBtn">اختيار صورة</button>
+        </div>
+      </div>
+      <div class="field">
+        <label>الاسم</label>
+        <input type="text" id="regName" required>
+      </div>
+      <div class="field">
+        <label>المعرف</label>
+        <input type="text" id="regUsername" required>
+      </div>
+      <div class="field">
+        <label>كلمة السر</label>
+        <input type="password" id="regPassword" required>
+      </div>
+      <button type="submit" class="btn-primary" id="registerBtn">إنشاء الحساب</button>
+      <div class="auth-switch">عندك حساب؟ <a id="goLogin">سجّل الدخول</a></div>
+    </form>
+  </div>
+</div>
+
+<!-- ===================== APP ===================== -->
+<div id="appScreen" hidden>
+  <div id="sidebar">
+    <div id="sidebarHeader">
+      <div class="me">
+        <div class="avatar" id="myAvatar"></div>
+        <div>
+          <div class="me-name" id="myName"></div>
+          <div class="me-username" id="myUsername"></div>
+        </div>
+      </div>
+      <button id="logoutBtn">خروج</button>
+    </div>
+    <div id="userList"></div>
+  </div>
+
+  <div id="chatPane">
+    <div id="chatPlaceholder">
+      <div class="big-dot"></div>
+      <div>اختر مستخدم من القائمة لبدء محادثة</div>
+    </div>
+
+    <div id="chatActive" hidden style="display:flex;flex-direction:column;height:100%;">
+      <div id="chatHeader">
+        <button class="icon-btn" id="backBtn">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+        </button>
+        <div class="avatar" id="chatAvatar"></div>
+        <div>
+          <div class="chat-h-name" id="chatName"></div>
+          <div class="chat-h-status"><span class="dot" id="chatDot"></span><span id="chatStatus">—</span></div>
+        </div>
+      </div>
+
+      <div id="messages"></div>
+
+      <div id="composer">
+        <input type="file" id="imageInput" accept="image/*" hidden>
+        <button class="icon-btn" id="attachBtn" title="إرسال صورة">
+          <svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a5.5 5.5 0 01-7.78-7.78l9.19-9.19a3.5 3.5 0 014.95 4.95l-9.2 9.19a1.5 1.5 0 01-2.12-2.12l8.49-8.48"/></svg>
+        </button>
+        <input type="text" id="textInput" placeholder="اكتب رسالة...">
+        <button class="icon-btn" id="micBtn" title="رسالة صوتية">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15a3 3 0 003-3V6a3 3 0 00-6 0v6a3 3 0 003 3z"/><path d="M19 11a7 7 0 01-14 0"/><path d="M12 18v3"/></svg>
+        </button>
+        <button class="icon-btn send" id="sendBtn" title="إرسال" hidden>
+          <svg viewBox="0 0 24 24" width="19" height="19" fill="currentColor"><path d="M3 11.5L21 3l-6 18-4.5-7.5L3 11.5z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round" fill="none"/></svg>
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== VOICE RECORDING OVERLAY ===================== -->
+<div id="recordOverlay" hidden>
+  <div class="rec-panel">
+    <div class="rec-timer" id="overlayTimer">0:00</div>
+    <div class="rec-wave" id="recWave"></div>
+    <div class="rec-hint">اسحب اليسار للإلغاء</div>
+    <div class="rec-actions">
+      <button class="rec-cancel" id="recCancelBtn">إلغاء</button>
+      <button class="rec-send" id="recSendBtn">
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><path d="M3 11.5L21 3l-6 18-4.5-7.5L3 11.5z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round" fill="none"/></svg>
+      </button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ================= CONFIG ================= */
+const firebaseConfig = {
+  apiKey: "AIzaSyATkRUi3HZ_Ilabl7IpUxTCoHYdBXzxLdA",
+  authDomain: "rnwehs3.firebaseapp.com",
+  projectId: "rnwehs3",
+  storageBucket: "rnwehs3.firebasestorage.app",
+  messagingSenderId: "1078032644233",
+  appId: "1:1078032644233:web:39ab1baf128d928b142e58",
+  measurementId: "G-ZDJ23P36RJ"
+};
+const IMGBB_API = "https://api.imgbb.com/1/upload";
+const IMGBB_KEY = "e60509a92a2dc36006a9347b3ba4f42a";
+const FAKE_EMAIL_DOMAIN = "@chatapp.local";
+const ONLINE_THRESHOLD_MS = 30000;
+const HEARTBEAT_MS = 15000;
+
+firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
+const db = firebase.firestore();
+const FieldValue = firebase.firestore.FieldValue;
+const MAX_RECORD_SECONDS = 60;
+const MAX_AUDIO_BYTES = 700000; // base64 stays safely under Firestore's 1MB doc limit
+
+/* ================= STATE ================= */
+let currentUser = null;      // {uid, name, username, avatar}
+let currentChatUid = null;   // other user's uid currently open
+let currentChatId = null;
+let usersCache = {};         // uid -> user doc data
+let chatsCache = {};         // otherUid -> chat doc data
+let unsubMessages = null;
+let unsubOtherUserStatus = null;
+let heartbeatTimer = null;
+let mediaRecorder = null;
+let recordedChunks = [];
+let recTimerInterval = null;
+let recSeconds = 0;
+let pendingAvatarFile = null;
+
+/* ================= HELPERS ================= */
+function showError(msg){
+  const el = document.getElementById('authError');
+  el.textContent = msg;
+  el.style.display = 'block';
+}
+function clearError(){
+  document.getElementById('authError').style.display = 'none';
+}
+function initials(name){
+  return (name || '?').trim().charAt(0).toUpperCase();
+}
+function setAvatarEl(el, user){
+  el.innerHTML = '';
+  if(user && user.avatar){
+    const img = document.createElement('img');
+    img.src = user.avatar;
+    el.appendChild(img);
+  } else {
+    el.textContent = initials(user ? user.name : '?');
+  }
+}
+function chatIdFor(uidA, uidB){
+  return [uidA, uidB].sort().join('_');
+}
+function fmtTime(date){
+  return date.toLocaleTimeString('ar-EG', {hour:'numeric', minute:'2-digit'});
+}
+function fmtMsgTime(ts){
+  if(!ts || !ts.toDate) return '';
+  return fmtTime(ts.toDate());
+}
+function statusText(userData){
+  if(!userData) return {text:'—', online:false};
+  const lastSeenMs = userData.lastSeen && userData.lastSeen.toDate ? userData.lastSeen.toDate().getTime() : 0;
+  const isOnline = userData.online && (Date.now() - lastSeenMs < ONLINE_THRESHOLD_MS);
+  if(isOnline) return {text:'متصل الآن', online:true};
+  if(lastSeenMs) return {text:'آخر ظهور الساعة ' + fmtTime(new Date(lastSeenMs)), online:false};
+  return {text:'غير متصل', online:false};
+}
+
+/* ================= IMGBB UPLOAD ================= */
+async function uploadToImgbb(file){
+  if(!IMGBB_KEY || IMGBB_KEY === 'PUT_YOUR_IMGBB_API_KEY_HERE'){
+    throw new Error('ما حطيت مفتاح imgbb بعد. دور على IMGBB_KEY بالكود وحط مفتاحك الحقيقي.');
+  }
+  const formData = new FormData();
+  formData.append('image', file);
+  let res;
+  try{
+    res = await fetch(`${IMGBB_API}?key=${IMGBB_KEY}`, {method:'POST', body: formData});
+  }catch(networkErr){
+    throw new Error('ما قدرنا نوصل لـ imgbb، تأكد من اتصال الإنترنت.');
+  }
+  const data = await res.json().catch(() => null);
+  if(!res.ok || !data || !data.success){
+    const reason = data && data.error && data.error.message ? data.error.message : ('HTTP ' + res.status);
+    throw new Error('فشل رفع الصورة: ' + reason);
+  }
+  return data.data.url;
+}
+
+/* ================= AUTH: UI SWITCH ================= */
+document.getElementById('goRegister').onclick = () => {
+  clearError();
+  document.getElementById('loginForm').hidden = true;
+  document.getElementById('registerForm').hidden = false;
+};
+document.getElementById('goLogin').onclick = () => {
+  clearError();
+  document.getElementById('registerForm').hidden = true;
+  document.getElementById('loginForm').hidden = false;
+};
+document.getElementById('avatarPickBtn').onclick = () => document.getElementById('avatarInput').click();
+document.getElementById('avatarInput').onchange = (e) => {
+  const file = e.target.files[0];
+  if(!file) return;
+  pendingAvatarFile = file;
+  const reader = new FileReader();
+  reader.onload = (ev) => {
+    document.getElementById('avatarPreview').innerHTML = `<img src="${ev.target.result}">`;
+  };
+  reader.readAsDataURL(file);
+};
+
+/* ================= REGISTER ================= */
+document.getElementById('registerForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  clearError();
+  const name = document.getElementById('regName').value.trim();
+  const username = document.getElementById('regUsername').value.trim().toLowerCase();
+  const password = document.getElementById('regPassword').value;
+  const btn = document.getElementById('registerBtn');
+
+  if(!/^[a-z0-9_.]{3,20}$/.test(username)){
+    showError('المعرف لازم يكون بالإنجليزي والأرقام فقط، من 3 لـ20 محرف');
+    return;
+  }
+  if(password.length < 6){
+    showError('كلمة السر لازم تكون 6 محارف على الأقل');
+    return;
+  }
+
+  btn.disabled = true; btn.textContent = 'جاري الإنشاء...';
+  try{
+    const existing = await db.collection('users').where('username','==',username).limit(1).get();
+    if(!existing.empty){
+      throw new Error('هذا المعرف مستخدم من قبل، جرب معرف تاني');
+    }
+
+    let avatarUrl = null;
+    if(pendingAvatarFile){
+      avatarUrl = await uploadToImgbb(pendingAvatarFile);
+    }
+
+    const cred = await auth.createUserWithEmailAndPassword(username + FAKE_EMAIL_DOMAIN, password);
+    const uid = cred.user.uid;
+
+    await db.collection('users').doc(uid).set({
+      name, username, avatar: avatarUrl,
+      online: true,
+      lastSeen: FieldValue.serverTimestamp(),
+      createdAt: FieldValue.serverTimestamp()
+    });
+
+    currentUser = {uid, name, username, avatar: avatarUrl};
+    enterApp();
+  }catch(err){
+    showError(err.message || 'صار خطأ، حاول مرة تانية');
+  }finally{
+    btn.disabled = false; btn.textContent = 'إنشاء الحساب';
+  }
+});
+
+/* ================= LOGIN ================= */
+document.getElementById('loginForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  clearError();
+  const username = document.getElementById('loginUsername').value.trim().toLowerCase();
+  const password = document.getElementById('loginPassword').value;
+  const btn = document.getElementById('loginBtn');
+
+  btn.disabled = true; btn.textContent = 'جاري الدخول...';
+  try{
+    const cred = await auth.signInWithEmailAndPassword(username + FAKE_EMAIL_DOMAIN, password);
+    const uid = cred.user.uid;
+    const doc = await db.collection('users').doc(uid).get();
+    if(!doc.exists) throw new Error('لم يتم العثور على بيانات الحساب');
+    const data = doc.data();
+    currentUser = {uid, name:data.name, username:data.username, avatar:data.avatar};
+    await db.collection('users').doc(uid).update({online:true, lastSeen: FieldValue.serverTimestamp()});
+    enterApp();
+  }catch(err){
+    showError('المعرف أو كلمة السر غير صحيحة');
+  }finally{
+    btn.disabled = false; btn.textContent = 'تسجيل الدخول';
+  }
+});
+
+/* ================= LOGOUT ================= */
+document.getElementById('logoutBtn').onclick = async () => {
+  if(currentUser){
+    await db.collection('users').doc(currentUser.uid).update({online:false, lastSeen: FieldValue.serverTimestamp()});
+  }
+  clearInterval(heartbeatTimer);
+  if(unsubMessages) unsubMessages();
+  if(unsubOtherUserStatus) unsubOtherUserStatus();
+  await auth.signOut();
+  location.reload();
+};
+
+/* ================= ENTER APP ================= */
+function enterApp(){
+  document.getElementById('authScreen').hidden = true;
+  document.getElementById('appScreen').hidden = false;
+
+  setAvatarEl(document.getElementById('myAvatar'), currentUser);
+  document.getElementById('myName').textContent = currentUser.name;
+  document.getElementById('myUsername').textContent = '@' + currentUser.username;
+
+  heartbeatTimer = setInterval(() => {
+    db.collection('users').doc(currentUser.uid).update({online:true, lastSeen: FieldValue.serverTimestamp()});
+  }, HEARTBEAT_MS);
+
+  window.addEventListener('beforeunload', () => {
+    navigator.sendBeacon && db.collection('users').doc(currentUser.uid).update({online:false});
+  });
+
+  listenUsersAndChats();
+}
+
+/* ================= USER LIST + CHATS ================= */
+function listenUsersAndChats(){
+  db.collection('users').onSnapshot(snap => {
+    usersCache = {};
+    snap.forEach(doc => {
+      if(doc.id !== currentUser.uid) usersCache[doc.id] = doc.data();
+    });
+    renderUserList();
+  });
+
+  db.collection('chats').where('participants','array-contains', currentUser.uid).onSnapshot(snap => {
+    chatsCache = {};
+    snap.forEach(doc => {
+      const data = doc.data();
+      const otherUid = data.participants.find(u => u !== currentUser.uid);
+      chatsCache[otherUid] = {id: doc.id, ...data};
+    });
+    renderUserList();
+  });
+}
+
+function renderUserList(){
+  const list = document.getElementById('userList');
+  const uids = Object.keys(usersCache);
+  if(uids.length === 0){
+    list.innerHTML = '<div class="empty-note">ما في مستخدمين مسجلين غيرك لهلق</div>';
+    return;
+  }
+  uids.sort((a,b) => {
+    const ta = chatsCache[a] && chatsCache[a].lastMessageTime ? chatsCache[a].lastMessageTime.toMillis() : 0;
+    const tb = chatsCache[b] && chatsCache[b].lastMessageTime ? chatsCache[b].lastMessageTime.toMillis() : 0;
+    if(ta !== tb) return tb - ta;
+    return (usersCache[a].name||'').localeCompare(usersCache[b].name||'');
+  });
+
+  list.innerHTML = '';
+  uids.forEach(uid => {
+    const user = usersCache[uid];
+    const chat = chatsCache[uid];
+    const unread = chat && chat.unread && chat.unread[currentUser.uid] ? chat.unread[currentUser.uid] : 0;
+
+    const row = document.createElement('div');
+    row.className = 'contact' + (uid === currentChatUid ? ' active' : '');
+    row.onclick = () => openChat(uid);
+
+    const avatar = document.createElement('div');
+    avatar.className = 'avatar';
+    setAvatarEl(avatar, user);
+
+    const mid = document.createElement('div');
+    mid.className = 'contact-mid';
+    mid.innerHTML = `
+      <div class="contact-top">
+        <div class="contact-name"></div>
+        <div class="contact-time">${chat && chat.lastMessageTime ? fmtMsgTime(chat.lastMessageTime) : ''}</div>
+      </div>
+      <div class="contact-bottom">
+        <div class="contact-preview"></div>
+      </div>`;
+    mid.querySelector('.contact-name').textContent = user.name;
+    mid.querySelector('.contact-preview').textContent = chat ? (chat.lastMessage || '') : 'ابدأ محادثة جديدة';
+
+    if(unread > 0){
+      const badge = document.createElement('div');
+      badge.className = 'unread-badge';
+      badge.textContent = unread > 99 ? '99+' : unread;
+      mid.querySelector('.contact-bottom').appendChild(badge);
+    }
+
+    row.appendChild(avatar);
+    row.appendChild(mid);
+    list.appendChild(row);
+  });
+}
+
+/* ================= OPEN CHAT ================= */
+async function openChat(otherUid){
+  currentChatUid = otherUid;
+  currentChatId = chatIdFor(currentUser.uid, otherUid);
+  const otherUser = usersCache[otherUid];
+
+  document.getElementById('chatPlaceholder').hidden = true;
+  document.getElementById('chatActive').hidden = false;
+  document.getElementById('appScreen').classList.add('chat-open');
+  renderUserList();
+
+  setAvatarEl(document.getElementById('chatAvatar'), otherUser);
+  document.getElementById('chatName').textContent = otherUser.name;
+
+  if(unsubOtherUserStatus) unsubOtherUserStatus();
+  unsubOtherUserStatus = db.collection('users').doc(otherUid).onSnapshot(doc => {
+    const s = statusText(doc.data());
+    document.getElementById('chatStatus').textContent = s.text;
+    document.getElementById('chatDot').classList.toggle('on', s.online);
+  });
+
+  // make sure the chat document (with participants) exists BEFORE we read its
+  // messages subcollection, otherwise the security rule's get() has nothing to read
+  try{
+    await db.collection('chats').doc(currentChatId).set({
+      participants: [currentUser.uid, otherUid],
+      ['unread.' + currentUser.uid]: 0
+    }, {merge:true});
+  }catch(err){
+    console.error('تعذر تجهيز المحادثة', err);
+  }
+
+  if(unsubMessages) unsubMessages();
+  const messagesEl = document.getElementById('messages');
+  messagesEl.innerHTML = '';
+  unsubMessages = db.collection('chats').doc(currentChatId).collection('messages')
+    .orderBy('timestamp','asc')
+    .onSnapshot(snap => {
+      messagesEl.innerHTML = '';
+      snap.forEach(doc => renderMessage(doc.data(), doc.id));
+      messagesEl.scrollTop = messagesEl.scrollHeight;
+    }, err => console.error('تعذرت قراءة الرسائل', err));
+}
+
+const REACTIONS = ['😅','😍','❤️'];
+const waveformCache = {}; // dataUrl -> peaks array, avoid re-decoding on every re-render
+
+function renderMessage(msg, id){
+  const messagesEl = document.getElementById('messages');
+  const row = document.createElement('div');
+  const out = msg.sender === currentUser.uid;
+  row.className = 'bubble-row ' + (out ? 'out' : 'in');
+  row.dataset.id = id;
+
+  const bubble = document.createElement('div');
+  const time = fmtMsgTime(msg.timestamp);
+
+  if(msg.type === 'text'){
+    bubble.className = 'bubble text ' + (out ? 'out' : 'in');
+    const p = document.createElement('div');
+    p.textContent = msg.text;
+    bubble.appendChild(p);
+    const t = document.createElement('div');
+    t.className = 'msg-time';
+    t.textContent = time;
+    bubble.appendChild(t);
+  } else if(msg.type === 'image'){
+    bubble.className = 'bubble media ' + (out ? 'out' : 'in');
+    const img = document.createElement('img');
+    img.src = msg.url;
+    bubble.appendChild(img);
+    const t = document.createElement('div');
+    t.className = 'msg-time';
+    t.style.padding = '4px 6px 0';
+    t.textContent = time;
+    bubble.appendChild(t);
+  } else if(msg.type === 'audio'){
+    bubble.className = 'bubble text voice ' + (out ? 'out' : 'in');
+    buildVoicePlayer(bubble, msg, out, time);
+  }
+
+  renderReactionBadge(bubble, msg);
+  row.appendChild(bubble);
+  messagesEl.appendChild(row);
+  attachLongPress(bubble, id, msg, out);
+}
+
+/* ---------- Telegram-style voice player ---------- */
+function buildVoicePlayer(bubble, msg, out, time){
+  const wrap = document.createElement('div');
+  wrap.className = 'voice-player';
+
+  const playBtn = document.createElement('button');
+  playBtn.className = 'voice-play';
+  playBtn.innerHTML = iconPlay();
+
+  const mid = document.createElement('div');
+  mid.className = 'voice-mid';
+  const waveWrap = document.createElement('div');
+  waveWrap.className = 'voice-wave-wrap';
+  const waveBg = document.createElement('div');
+  waveBg.className = 'voice-wave-bg';
+  const waveFg = document.createElement('div');
+  waveFg.className = 'voice-wave-fg';
+  waveWrap.appendChild(waveBg);
+  waveWrap.appendChild(waveFg);
+  const timeRow = document.createElement('div');
+  timeRow.className = 'voice-time';
+  timeRow.textContent = '0:00';
+  mid.appendChild(waveWrap);
+  mid.appendChild(timeRow);
+
+  wrap.appendChild(playBtn);
+  wrap.appendChild(mid);
+  bubble.appendChild(wrap);
+  const t = document.createElement('div');
+  t.className = 'msg-time';
+  t.style.padding = '0 2px';
+  t.textContent = time;
+  bubble.appendChild(t);
+
+  const audio = new Audio(msg.dataUrl);
+  let barsCount = 32;
+  let playing = false;
+
+  function renderBars(peaks){
+    waveBg.innerHTML = '';
+    waveFg.innerHTML = '';
+    peaks.forEach(p => {
+      const h = Math.round(3 + p * 15);
+      const b1 = document.createElement('span');
+      b1.style.height = h + 'px';
+      waveBg.appendChild(b1);
+      const b2 = document.createElement('span');
+      b2.style.height = h + 'px';
+      waveFg.appendChild(b2);
+    });
+  }
+  // flat placeholder bars while decoding
+  renderBars(new Array(barsCount).fill(0.35));
+
+  getWaveformPeaks(msg.dataUrl, barsCount).then(peaks => {
+    if(peaks) renderBars(peaks);
+  });
+
+  audio.addEventListener('loadedmetadata', () => {
+    if(!playing) timeRow.textContent = fmtDuration(audio.duration);
+  });
+  audio.addEventListener('timeupdate', () => {
+    const frac = audio.duration ? (audio.currentTime / audio.duration) : 0;
+    waveFg.style.width = (frac * 100) + '%';
+    timeRow.textContent = fmtDuration(audio.currentTime);
+  });
+  audio.addEventListener('ended', () => {
+    playing = false;
+    playBtn.innerHTML = iconPlay();
+    waveFg.style.width = '0%';
+    timeRow.textContent = fmtDuration(audio.duration);
+  });
+
+  playBtn.onclick = (e) => {
+    e.stopPropagation();
+    document.querySelectorAll('audio').forEach(a => { if(a !== audio) a.pause(); });
+    if(playing){
+      audio.pause();
+      playing = false;
+      playBtn.innerHTML = iconPlay();
+    } else {
+      audio.play();
+      playing = true;
+      playBtn.innerHTML = iconPause();
+    }
+  };
+}
+
+function fmtDuration(sec){
+  if(!isFinite(sec)) return '0:00';
+  const m = Math.floor(sec/60), s = Math.floor(sec%60);
+  return m + ':' + String(s).padStart(2,'0');
+}
+function iconPlay(){
+  return '<svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>';
+}
+function iconPause(){
+  return '<svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor"><rect x="6" y="5" width="4" height="14"/><rect x="14" y="5" width="4" height="14"/></svg>';
+}
+
+async function getWaveformPeaks(dataUrl, barsCount){
+  if(waveformCache[dataUrl]) return waveformCache[dataUrl];
+  try{
+    const res = await fetch(dataUrl);
+    const arrayBuffer = await res.arrayBuffer();
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    const ctx = new AudioCtx();
+    const audioBuffer = await ctx.decodeAudioData(arrayBuffer);
+    const raw = audioBuffer.getChannelData(0);
+    const blockSize = Math.max(1, Math.floor(raw.length / barsCount));
+    const peaks = [];
+    for(let i=0;i<barsCount;i++){
+      let sum = 0, count = 0;
+      for(let j=0;j<blockSize;j++){
+        const idx = i*blockSize+j;
+        if(idx < raw.length){ sum += Math.abs(raw[idx]); count++; }
+      }
+      peaks.push(count ? sum/count : 0);
+    }
+    const max = Math.max(...peaks, 0.0001);
+    const normalized = peaks.map(p => Math.max(0.12, p/max));
+    waveformCache[dataUrl] = normalized;
+    ctx.close && ctx.close();
+    return normalized;
+  }catch(err){
+    return null; // keep the flat placeholder bars if decoding isn't supported
+  }
+}
+
+/* ---------- Reactions ---------- */
+function renderReactionBadge(bubble, msg){
+  const reactions = msg.reactions || {};
+  const emojis = Object.values(reactions).filter(Boolean);
+  if(emojis.length === 0) return;
+  const counts = {};
+  emojis.forEach(e => counts[e] = (counts[e]||0) + 1);
+  const badge = document.createElement('div');
+  badge.className = 'reaction-badge';
+  badge.textContent = Object.entries(counts).map(([e,c]) => c > 1 ? e+c : e).join(' ');
+  bubble.appendChild(badge);
+}
+
+async function toggleReaction(chatIdArg, messageId, emoji){
+  const ref = db.collection('chats').doc(chatIdArg).collection('messages').doc(messageId);
+  try{
+    const doc = await ref.get();
+    const current = (doc.data() || {}).reactions || {};
+    if(current[currentUser.uid] === emoji){
+      await ref.update({['reactions.' + currentUser.uid]: FieldValue.delete()});
+    } else {
+      await ref.update({['reactions.' + currentUser.uid]: emoji});
+    }
+  }catch(err){
+    console.error('تعذر إضافة التفاعل', err);
+  }
+}
+
+async function deleteMessage(chatIdArg, messageId){
+  try{
+    await db.collection('chats').doc(chatIdArg).collection('messages').doc(messageId).delete();
+  }catch(err){
+    alert('ما قدرنا نحذف الرسالة');
+  }
+}
+
+/* ---------- Long press menu ---------- */
+let longPressTimer = null;
+function attachLongPress(bubble, id, msg, out){
+  let startX = 0, startY = 0, moved = false;
+  const start = (x,y) => { startX=x; startY=y; moved=false;
+    longPressTimer = setTimeout(() => {
+      if(!moved){
+        bubble.classList.add('pressed');
+        navigator.vibrate && navigator.vibrate(12);
+        openReactionMenu(bubble, id, msg, out);
+      }
+    }, 420);
+  };
+  const move = (x,y) => {
+    if(Math.abs(x-startX) > 8 || Math.abs(y-startY) > 8) moved = true;
+  };
+  const end = () => { clearTimeout(longPressTimer); bubble.classList.remove('pressed'); };
+
+  bubble.addEventListener('touchstart', (e) => start(e.touches[0].clientX, e.touches[0].clientY), {passive:true});
+  bubble.addEventListener('touchmove', (e) => move(e.touches[0].clientX, e.touches[0].clientY), {passive:true});
+  bubble.addEventListener('touchend', end);
+  bubble.addEventListener('mousedown', (e) => start(e.clientX, e.clientY));
+  bubble.addEventListener('mousemove', (e) => { if(e.buttons) move(e.clientX, e.clientY); });
+  bubble.addEventListener('mouseup', end);
+  bubble.addEventListener('mouseleave', end);
+  bubble.addEventListener('contextmenu', (e) => e.preventDefault());
+}
+
+function closeReactionMenu(){
+  const menu = document.getElementById('reactionMenu');
+  const backdrop = document.getElementById('menuBackdrop');
+  if(menu) menu.remove();
+  if(backdrop) backdrop.remove();
+  document.querySelectorAll('.bubble.pressed').forEach(b => b.classList.remove('pressed'));
+}
+
+function openReactionMenu(bubble, id, msg, out){
+  closeReactionMenu();
+  const backdrop = document.createElement('div');
+  backdrop.id = 'menuBackdrop';
+  backdrop.onclick = closeReactionMenu;
+  document.body.appendChild(backdrop);
+
+  const menu = document.createElement('div');
+  menu.id = 'reactionMenu';
+
+  REACTIONS.forEach(emoji => {
+    const btn = document.createElement('button');
+    btn.className = 'emoji-opt';
+    btn.textContent = emoji;
+    btn.onclick = () => {
+      toggleReaction(currentChatId, id, emoji);
+      closeReactionMenu();
+    };
+    menu.appendChild(btn);
+  });
+
+  if(out){
+    const sep = document.createElement('div');
+    sep.className = 'menu-sep';
+    menu.appendChild(sep);
+
+    const delBtn = document.createElement('button');
+    delBtn.className = 'delete-opt';
+    delBtn.innerHTML = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/></svg>';
+    delBtn.onclick = () => {
+      deleteMessage(currentChatId, id);
+      closeReactionMenu();
+    };
+    menu.appendChild(delBtn);
+  }
+
+  document.body.appendChild(menu);
+
+  const rect = bubble.getBoundingClientRect();
+  const menuRect = menu.getBoundingClientRect();
+  let top = rect.top - menuRect.height - 10;
+  if(top < 8) top = rect.bottom + 10;
+  let left = rect.left + rect.width/2 - menuRect.width/2;
+  left = Math.max(8, Math.min(left, window.innerWidth - menuRect.width - 8));
+  menu.style.top = top + 'px';
+  menu.style.left = left + 'px';
+}
+
+/* ================= SEND: shared chat doc update ================= */
+async function touchChatDoc(lastMessage){
+  await db.collection('chats').doc(currentChatId).set({
+    participants: [currentUser.uid, currentChatUid],
+    lastMessage,
+    lastMessageTime: FieldValue.serverTimestamp(),
+    ['unread.' + currentChatUid]: FieldValue.increment(1)
+  }, {merge:true});
+}
+
+/* ================= BACK BUTTON (mobile) ================= */
+document.getElementById('backBtn').onclick = () => {
+  document.getElementById('appScreen').classList.remove('chat-open');
+};
+
+/* ================= SEND TEXT ================= */
+document.getElementById('sendBtn').onclick = sendText;
+document.getElementById('textInput').addEventListener('keydown', (e) => {
+  if(e.key === 'Enter') sendText();
+});
+document.getElementById('textInput').addEventListener('input', (e) => {
+  const hasText = e.target.value.trim().length > 0;
+  document.getElementById('sendBtn').hidden = !hasText;
+  document.getElementById('micBtn').hidden = hasText;
+});
+async function sendText(){
+  const input = document.getElementById('textInput');
+  const text = input.value.trim();
+  if(!text || !currentChatId) return;
+  input.value = '';
+  document.getElementById('sendBtn').hidden = true;
+  document.getElementById('micBtn').hidden = false;
+  await touchChatDoc(text);
+  await db.collection('chats').doc(currentChatId).collection('messages').add({
+    sender: currentUser.uid, type:'text', text,
+    timestamp: FieldValue.serverTimestamp()
+  });
+}
+
+/* ================= SEND IMAGE ================= */
+document.getElementById('attachBtn').onclick = () => document.getElementById('imageInput').click();
+document.getElementById('imageInput').addEventListener('change', async (e) => {
+  const file = e.target.files[0];
+  e.target.value = '';
+  if(!file || !currentChatId) return;
+  try{
+    const url = await uploadToImgbb(file);
+    await touchChatDoc('📷 صورة');
+    await db.collection('chats').doc(currentChatId).collection('messages').add({
+      sender: currentUser.uid, type:'image', url,
+      timestamp: FieldValue.serverTimestamp()
+    });
+  }catch(err){
+    alert(err.message || 'صار خطأ برفع الصورة');
+  }
+});
+
+/* ================= SEND AUDIO (voice message) ================= */
+let recordingCancelled = false;
+
+function buildWaveBars(){
+  const wave = document.getElementById('recWave');
+  wave.innerHTML = '';
+  for(let i=0;i<9;i++){
+    const bar = document.createElement('span');
+    wave.appendChild(bar);
+  }
+}
+
+document.getElementById('micBtn').onclick = async () => {
+  if(!currentChatId) return;
+  try{
+    const stream = await navigator.mediaDevices.getUserMedia({audio:true});
+    recordedChunks = [];
+    recordingCancelled = false;
+    mediaRecorder = new MediaRecorder(stream);
+    mediaRecorder.ondataavailable = (e) => recordedChunks.push(e.data);
+
+    mediaRecorder.onstop = async () => {
+      stream.getTracks().forEach(t => t.stop());
+      clearInterval(recTimerInterval);
+      document.getElementById('recordOverlay').hidden = true;
+
+      if(recordingCancelled) return;
+
+      const blob = new Blob(recordedChunks, {type:'audio/webm'});
+      if(blob.size > MAX_AUDIO_BYTES){
+        alert('الرسالة الصوتية طويلة كتير، جرب تسجل رسالة أقصر (أقل من دقيقة تقريباً)');
+        return;
+      }
+      const dataUrl = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+      });
+      await touchChatDoc('🎤 رسالة صوتية');
+      await db.collection('chats').doc(currentChatId).collection('messages').add({
+        sender: currentUser.uid, type:'audio', dataUrl,
+        timestamp: FieldValue.serverTimestamp()
+      });
+    };
+
+    buildWaveBars();
+    document.getElementById('recordOverlay').hidden = false;
+    mediaRecorder.start();
+    recSeconds = 0;
+    document.getElementById('overlayTimer').textContent = '0:00';
+    recTimerInterval = setInterval(() => {
+      recSeconds++;
+      const m = Math.floor(recSeconds/60), s = recSeconds%60;
+      document.getElementById('overlayTimer').textContent = m + ':' + String(s).padStart(2,'0');
+      if(recSeconds >= MAX_RECORD_SECONDS && mediaRecorder && mediaRecorder.state === 'recording'){
+        mediaRecorder.stop();
+      }
+    }, 1000);
+  }catch(err){
+    alert('ما قدرنا نوصل للمايكروفون');
+  }
+};
+
+document.getElementById('recSendBtn').onclick = () => {
+  if(mediaRecorder && mediaRecorder.state === 'recording'){
+    recordingCancelled = false;
+    mediaRecorder.stop();
+  }
+};
+
+document.getElementById('recCancelBtn').onclick = () => {
+  if(mediaRecorder && mediaRecorder.state === 'recording'){
+    recordingCancelled = true;
+    mediaRecorder.stop();
+  }
+};
+
+/* ================= AUTO LOGIN (session) ================= */
+auth.onAuthStateChanged(async (user) => {
+  if(user && !currentUser){
+    const doc = await db.collection('users').doc(user.uid).get();
+    if(doc.exists){
+      const data = doc.data();
+      currentUser = {uid:user.uid, name:data.name, username:data.username, avatar:data.avatar};
+      await db.collection('users').doc(user.uid).update({online:true, lastSeen: FieldValue.serverTimestamp()});
+      enterApp();
+    }
+  }
+});
+</script>
+</body>
+</html>
